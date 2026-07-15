@@ -19,13 +19,15 @@ export function ClassRoom({ session, profile, isTeacher }: { session: any; profi
   const router = useRouter();
   const [materialsLink, setMaterialsLink] = useState(session.materials_link ?? "");
 
-  // Nếu giáo viên không nhập link riêng (Zoom/Teams/Meet), dùng phòng Jitsi Meet miễn phí,
-  // đặt tên phòng cố định theo session id để cả 2 bên luôn vào chung 1 phòng.
-  const usesJitsi = !session.meeting_link || session.meeting_link.includes("jit.si");
+  // 3 kiểu link video call:
+  // 1) Daily.co (vi du https://ten.daily.co/phong) -> nhung thang bang iframe, khong can dang nhap.
+  // 2) Trong hoac chua "jit.si" -> dung phong Jitsi Meet mien phi, nhung qua script external_api.js.
+  // 3) Link khac (Zoom/Teams/Google Meet) -> khong nhung duoc, hien nut mo tab moi.
+  const usesDaily = !!session.meeting_link && session.meeting_link.includes("daily.co");
+  const usesJitsi = !usesDaily && (!session.meeting_link || session.meeting_link.includes("jit.si"));
   const jitsiRoom = `NihongoITMS-${session.id}`;
 
   useEffect(() => {
-    // ghi nhận điểm danh khi học viên vào lớp
     if (!isTeacher) {
       fetch(`/api/attendance/${session.id}`, { method: "POST" }).catch(() => {});
     }
@@ -37,7 +39,7 @@ export function ClassRoom({ session, profile, isTeacher }: { session: any; profi
   }, [session.id, isTeacher]);
 
   useEffect(() => {
-    if (!usesJitsi) return; // dùng external link (Zoom/Teams/Meet) — không nhúng iframe
+    if (!usesJitsi) return;
     const domain = process.env.NEXT_PUBLIC_JITSI_DOMAIN ?? "meet.jit.si";
     const scriptId = "jitsi-external-api";
 
@@ -96,20 +98,16 @@ export function ClassRoom({ session, profile, isTeacher }: { session: any; profi
           </Button>
         </div>
 
-        {/* Materials link — giáo viên tự chuẩn bị tài liệu trên máy và present qua share-screen
-            trong buổi học; ở đây chỉ lưu link tham khảo (Google Drive/OneDrive...) để học viên xem trước/sau. */}
         <div className="flex items-center gap-2 border-b border-sumi-100 bg-sumi-50/60 px-4 py-2">
           <FileText className="h-4 w-4 shrink-0 text-sumi-400" />
           {isTeacher ? (
-            <>
-              <Input
-                className="h-8 flex-1 bg-white text-xs"
-                placeholder="Dán link tài liệu buổi học (Google Drive, OneDrive...)"
-                value={materialsLink}
-                onChange={(e) => setMaterialsLink(e.target.value)}
-                onBlur={saveMaterials}
-              />
-            </>
+            <Input
+              className="h-8 flex-1 bg-white text-xs"
+              placeholder="Dán link tài liệu buổi học (Google Drive, OneDrive...)"
+              value={materialsLink}
+              onChange={(e) => setMaterialsLink(e.target.value)}
+              onBlur={saveMaterials}
+            />
           ) : materialsLink ? (
             <a href={materialsLink} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-medium text-navy-700 hover:underline">
               Xem tài liệu buổi học <ExternalLink className="h-3 w-3" />
@@ -120,7 +118,13 @@ export function ClassRoom({ session, profile, isTeacher }: { session: any; profi
         </div>
 
         <div className="flex-1 bg-sumi-900">
-          {usesJitsi ? (
+          {usesDaily ? (
+            <iframe
+              src={session.meeting_link}
+              allow="camera; microphone; fullscreen; display-capture; autoplay"
+              className="h-full w-full border-0"
+            />
+          ) : usesJitsi ? (
             <div ref={containerRef} className="h-full w-full" />
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-white">
