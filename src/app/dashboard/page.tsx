@@ -1,0 +1,44 @@
+import { createClient } from "@/lib/supabase/server";
+import { StudentDashboard } from "@/components/student-dashboard";
+import { TeacherDashboard } from "@/components/teacher-dashboard";
+import { redirect } from "next/navigation";
+
+export default async function DashboardPage() {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?redirect=/dashboard");
+
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+  if (!profile) return null;
+
+  if (profile.role === "teacher") {
+    const { data: courses } = await supabase.from("courses").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
+    const courseIds = (courses ?? []).map((c) => c.id);
+
+    const { data: pendingEnrollments } = courseIds.length
+      ? await supabase.from("enrollments").select("*, student:profiles(full_name, email, phone), course:courses(title)").in("course_id", courseIds).eq("status", "pending")
+      : { data: [] };
+
+    const { data: upcomingSessions } = courseIds.length
+      ? await supabase.from("sessions").select("*, course:courses(title)").in("course_id", courseIds).gte("session_date", new Date(Date.now() - 3600000).toISOString()).order("session_date").limit(5)
+      : { data: [] };
+
+    return <TeacherDashboard courses={courses ?? []} pendingEnrollments={pendingEnrollments ?? []} upcomingSessions={upcomingSessions ?? []} />;
+  }
+
+  const { data: enrollments } = await supabase
+    .from("enrollments")
+    .select("*, course:courses(*, teacher:profiles(full_name))")
+    .eq("student_id", user.id)
+    .order("created_at", { ascending: false });
+
+  const approvedCourseIds = (enrollments ?? []).filter((e) => e.status === "approved").map((e) => e.course_id);
+
+  const { data: upcomingSessions } = approvedCourseIds.length
+    ? await supabase.from("sessions").select("*, course:courses(title)").in("course_id", approvedCourseIds).gte("session_date", new Date(Date.now() - 3600000).toISOString()).order("session_date").limit(10)
+    : { data: [] };
+
+  return <StudentDashboard enrollments={enrollments ?? []} upcomingSessions={upcomingSessions ?? []} />;
+}
