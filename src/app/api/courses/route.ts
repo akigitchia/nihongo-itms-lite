@@ -19,6 +19,9 @@ export async function POST(request: NextRequest) {
       max_students: body.max_students ?? 15,
       teacher_id: user.id,
       status: "open",
+      course_format: body.course_format ?? "live",
+      price: body.price ?? null,
+      payment_note: body.payment_note ?? null,
     })
     .select()
     .single();
