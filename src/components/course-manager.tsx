@@ -37,9 +37,10 @@ export function CourseManager({
     return acc;
   }, {});
 
-  const questionsBySession = questions.reduce<Record<string, any[]>>((acc, q) => {
-    acc[q.session_id] = acc[q.session_id] ?? [];
-    acc[q.session_id].push(q);
+const questionsBySession = questions.reduce<Record<string, any[]>>((acc, q) => {
+    const list = acc[q.session_id] ?? [];
+    list.push(q);
+    acc[q.session_id] = list;
     return acc;
   }, {});
 
