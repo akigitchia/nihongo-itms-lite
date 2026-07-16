@@ -2,22 +2,44 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CalendarPlus, FileText, PlayCircle, Users, Video } from "lucide-react";
+import { CalendarPlus, FileText, MessageCircle, PlayCircle, Plus, Trash2, Users, Video } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ChatPanel } from "@/components/chat-panel";
 import { formatDateVi, formatTimeVi } from "@/lib/utils";
 
-export function CourseManager({ course, sessions, roster, attendance }: { course: any; sessions: any[]; roster: any[]; attendance: any[] }) {
+export function CourseManager({
+  course,
+  sessions,
+  roster,
+  attendance,
+  quizQuestions,
+  currentUserId,
+}: {
+  course: any;
+  sessions: any[];
+  roster: any[];
+  attendance: any[];
+  quizQuestions: any[];
+  currentUserId: string;
+}) {
   const [items, setItems] = useState(sessions);
   const [showForm, setShowForm] = useState(false);
+  const [questions, setQuestions] = useState(quizQuestions);
   const isSelfPaced = course.course_format === "self_paced";
 
   const attendanceBySession = attendance.reduce<Record<string, number>>((acc, a) => {
     if (a.joined_at) acc[a.session_id] = (acc[a.session_id] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const questionsBySession = questions.reduce<Record<string, any[]>>((acc, q) => {
+    acc[q.session_id] = acc[q.session_id] ?? [];
+    acc[q.session_id].push(q);
     return acc;
   }, {});
 
@@ -56,7 +78,12 @@ export function CourseManager({ course, sessions, roster, attendance }: { course
 
           {items.map((s) =>
             isSelfPaced ? (
-              <LessonRow key={s.id} session={s} />
+              <LessonRow
+                key={s.id}
+                session={s}
+                questions={questionsBySession[s.id] ?? []}
+                onQuestionAdded={(q) => setQuestions((prev) => [...prev, q])}
+              />
             ) : (
               <SessionRow key={s.id} session={s} attendeeCount={attendanceBySession[s.id] ?? 0} totalRoster={roster.length} />
             )
@@ -78,26 +105,141 @@ export function CourseManager({ course, sessions, roster, attendance }: { course
           ))}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="h-4 w-4" /> Tin nhắn từ học viên
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="h-96 p-0">
+          <ChatPanel courseId={course.id} currentUserId={currentUserId} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function LessonRow({ session }: { session: any }) {
+function LessonRow({ session, questions, onQuestionAdded }: { session: any; questions: any[]; onQuestionAdded: (q: any) => void }) {
+  const [showQuizForm, setShowQuizForm] = useState(false);
+
   return (
-    <div className="flex items-center justify-between rounded-lg border border-sumi-100 p-4">
-      <div>
-        <p className="text-xs text-sumi-400">Bài {session.session_number}</p>
-        <p className="font-medium text-sumi-900">{session.title ?? `Bài giảng ${session.session_number}`}</p>
+    <div className="rounded-lg border border-sumi-100 p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-sumi-400">Bài {session.session_number}</p>
+          <p className="font-medium text-sumi-900">{session.title ?? `Bài giảng ${session.session_number}`}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {session.materials_link ? (
+            <a href={session.materials_link} target="_blank" rel="noreferrer">
+              <Button size="sm" variant="outline">
+                <PlayCircle className="h-4 w-4" /> Xem video
+              </Button>
+            </a>
+          ) : (
+            <Badge tone="amber">Chưa có link video</Badge>
+          )}
+        </div>
       </div>
-      {session.materials_link ? (
-        <a href={session.materials_link} target="_blank" rel="noreferrer">
-          <Button size="sm" variant="outline">
-            <PlayCircle className="h-4 w-4" /> Xem video
+
+      <div className="mt-3 border-t border-sumi-100 pt-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-sumi-600">Quiz ({questions.length} câu hỏi)</p>
+          <Button size="sm" variant="ghost" onClick={() => setShowQuizForm((s) => !s)}>
+            <Plus className="h-4 w-4" /> Thêm câu hỏi
           </Button>
-        </a>
-      ) : (
-        <Badge tone="amber">Chưa có link video</Badge>
-      )}
+        </div>
+        {questions.length > 0 && (
+          <ul className="mt-2 space-y-1 text-xs text-sumi-400">
+            {questions.map((q, i) => (
+              <li key={q.id}>
+                {i + 1}. {q.question_text}
+              </li>
+            ))}
+          </ul>
+        )}
+        {showQuizForm && (
+          <QuizQuestionForm
+            sessionId={session.id}
+            nextSequence={questions.length + 1}
+            onCreated={(q) => {
+              onQuestionAdded(q);
+              setShowQuizForm(false);
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QuizQuestionForm({ sessionId, nextSequence, onCreated }: { sessionId: string; nextSequence: number; onCreated: (q: any) => void }) {
+  const [questionText, setQuestionText] = useState("");
+  const [options, setOptions] = useState([
+    { id: "a", text: "" },
+    { id: "b", text: "" },
+  ]);
+  const [correctOption, setCorrectOption] = useState("a");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/quiz-questions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          question_text: questionText,
+          options,
+          correct_option: correctOption,
+          sequence: nextSequence,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Tạo câu hỏi thất bại.");
+      const body = await res.json();
+      onCreated(body.question);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Có lỗi xảy ra.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 space-y-2 rounded-lg border border-dashed border-sumi-100 bg-sumi-50/50 p-3">
+      <Input placeholder="Câu hỏi" value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
+      {options.map((opt, i) => (
+        <div key={opt.id} className="flex items-center gap-2">
+          <input type="radio" name="correct" checked={correctOption === opt.id} onChange={() => setCorrectOption(opt.id)} />
+          <Input
+            placeholder={`Đáp án ${opt.id.toUpperCase()}${opt.id === correctOption ? " (đúng)" : ""}`}
+            value={opt.text}
+            onChange={(e) => setOptions((prev) => prev.map((o, idx) => (idx === i ? { ...o, text: e.target.value } : o)))}
+          />
+          {options.length > 2 && (
+            <button type="button" onClick={() => setOptions((prev) => prev.filter((_, idx) => idx !== i))}>
+              <Trash2 className="h-4 w-4 text-shu-500" />
+            </button>
+          )}
+        </div>
+      ))}
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={() => setOptions((prev) => [...prev, { id: String.fromCharCode(97 + prev.length), text: "" }])}
+      >
+        + Thêm đáp án
+      </Button>
+      {error && <Alert tone="error">{error}</Alert>}
+      <Button size="sm" onClick={handleSave} isLoading={saving}>
+        Lưu câu hỏi
+      </Button>
+      <p className="text-xs text-sumi-400">Tick chọn đáp án đúng ở ô tròn bên trái trước khi lưu.</p>
     </div>
   );
 }
