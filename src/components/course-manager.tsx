@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CalendarPlus, FileText, MessageCircle, PlayCircle, Plus, Trash2, Users, Video } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CalendarPlus, FileText, MessageCircle, PlayCircle, Plus, Settings, Trash2, Users, Video } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChatPanel } from "@/components/chat-panel";
 import { formatDateVi, formatTimeVi } from "@/lib/utils";
+import { LEVELS } from "@/lib/types";
 
 export function CourseManager({
   course,
@@ -27,9 +29,12 @@ export function CourseManager({
   quizQuestions: any[];
   currentUserId: string;
 }) {
+  const router = useRouter();
   const [items, setItems] = useState(sessions);
   const [showForm, setShowForm] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [questions, setQuestions] = useState(quizQuestions);
+  const [deleting, setDeleting] = useState(false);
   const isSelfPaced = course.course_format === "self_paced";
 
   const attendanceBySession = attendance.reduce<Record<string, number>>((acc, a) => {
@@ -37,23 +42,49 @@ export function CourseManager({
     return acc;
   }, {});
 
-const questionsBySession = questions.reduce<Record<string, any[]>>((acc, q) => {
+  const questionsBySession = questions.reduce<Record<string, any[]>>((acc, q) => {
     const list = acc[q.session_id] ?? [];
     list.push(q);
     acc[q.session_id] = list;
     return acc;
   }, {});
 
+  async function handleDeleteCourse() {
+    if (!window.confirm(`Xóa khóa học "${course.title}"? Toàn bộ buổi học, đăng ký, điểm danh, quiz và tin nhắn liên quan sẽ bị xóa vĩnh viễn, không thể hoàn tác.`)) {
+      return;
+    }
+    setDeleting(true);
+    const res = await fetch(`/api/courses/${course.id}`, { method: "DELETE" });
+    if (res.ok) {
+      router.push("/dashboard");
+      router.refresh();
+    } else {
+      alert("Xóa thất bại, vui lòng thử lại.");
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-8 px-4 py-8 sm:px-6">
       <div>
-        <div className="mb-1 flex gap-1.5">
+        <div className="mb-1 flex flex-wrap items-center gap-1.5">
           <Badge tone="navy">{course.level}</Badge>
           <Badge tone={isSelfPaced ? "shu" : "green"}>{isSelfPaced ? "Khóa tự học" : "Lớp trực tuyến"}</Badge>
+          <Badge tone={course.status === "open" ? "green" : "gray"}>{course.status === "open" ? "Đang mở" : "Đã đóng"}</Badge>
         </div>
         <h1 className="text-2xl font-bold text-sumi-900">{course.title}</h1>
         <p className="text-sm text-sumi-400">{isSelfPaced ? `Học phí: ${course.price ? course.price.toLocaleString("vi-VN") + "đ" : "Miễn phí"}` : course.schedule_text}</p>
+        <div className="mt-3 flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowEdit((s) => !s)}>
+            <Settings className="h-4 w-4" /> {showEdit ? "Đóng chỉnh sửa" : "Chỉnh sửa khóa học"}
+          </Button>
+          <Button size="sm" variant="danger" onClick={handleDeleteCourse} isLoading={deleting}>
+            <Trash2 className="h-4 w-4" /> Xóa khóa học
+          </Button>
+        </div>
       </div>
+
+      {showEdit && <EditCourseForm course={course} onClose={() => setShowEdit(false)} />}
 
       <Card>
         <CardHeader className="flex-row items-center justify-between">
@@ -118,6 +149,118 @@ const questionsBySession = questions.reduce<Record<string, any[]>>((acc, q) => {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function EditCourseForm({ course, onClose }: { course: any; onClose: () => void }) {
+  const router = useRouter();
+  const isSelfPaced = course.course_format === "self_paced";
+  const [title, setTitle] = useState(course.title);
+  const [level, setLevel] = useState(course.level);
+  const [description, setDescription] = useState(course.description ?? "");
+  const [scheduleText, setScheduleText] = useState(course.schedule_text ?? "");
+  const [maxStudents, setMaxStudents] = useState(course.max_students ?? 15);
+  const [price, setPrice] = useState(course.price ?? 0);
+  const [paymentNote, setPaymentNote] = useState(course.payment_note ?? "");
+  const [status, setStatus] = useState(course.status);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    try {
+      const updates: Record<string, any> = { title, level, description, status };
+      if (isSelfPaced) {
+        updates.price = price;
+        updates.payment_note = paymentNote;
+      } else {
+        updates.schedule_text = scheduleText;
+        updates.max_students = maxStudents;
+      }
+      const res = await fetch(`/api/courses/${course.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Cập nhật thất bại.");
+      router.refresh();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Có lỗi xảy ra.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Chỉnh sửa thông tin khóa học</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <Label>Tên khóa học</Label>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <div>
+          <Label>Trình độ</Label>
+          <Select value={level} onChange={(e) => setLevel(e.target.value)}>
+            {LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label>Mô tả</Label>
+          <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+        </div>
+
+        {isSelfPaced ? (
+          <>
+            <div>
+              <Label>Học phí (VND)</Label>
+              <Input type="number" min={0} step={1000} value={price} onChange={(e) => setPrice(Number(e.target.value))} />
+            </div>
+            <div>
+              <Label>Hướng dẫn thanh toán</Label>
+              <Textarea rows={3} value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} />
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <Label>Lịch học</Label>
+              <Input value={scheduleText} onChange={(e) => setScheduleText(e.target.value)} />
+            </div>
+            <div>
+              <Label>Số học viên tối đa</Label>
+              <Input type="number" min={1} value={maxStudents} onChange={(e) => setMaxStudents(Number(e.target.value))} />
+            </div>
+          </>
+        )}
+
+        <div>
+          <Label>Trạng thái đăng ký</Label>
+          <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="open">Đang mở đăng ký</option>
+            <option value="closed">Đã đóng (ẩn khỏi trang chủ)</option>
+          </Select>
+        </div>
+
+        {error && <Alert tone="error">{error}</Alert>}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onClose}>
+            Hủy
+          </Button>
+          <Button onClick={handleSave} isLoading={saving}>
+            Lưu thay đổi
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
