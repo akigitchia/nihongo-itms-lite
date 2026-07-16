@@ -18,6 +18,18 @@ export default async function TeacherCourseDetailPage({ params }: { params: { id
 
   const sessionIds = (sessions ?? []).map((s) => s.id);
   const { data: attendance } = sessionIds.length ? await supabase.from("attendance").select("*").in("session_id", sessionIds) : { data: [] };
+  const { data: quizQuestions } = sessionIds.length
+    ? await supabase.from("quiz_questions").select("*").in("session_id", sessionIds).order("sequence")
+    : { data: [] };
 
-  return <CourseManager course={course} sessions={sessions ?? []} roster={roster ?? []} attendance={attendance ?? []} />;
+  return (
+    <CourseManager
+      course={course}
+      sessions={sessions ?? []}
+      roster={roster ?? []}
+      attendance={attendance ?? []}
+      quizQuestions={quizQuestions ?? []}
+      currentUserId={user.id}
+    />
+  );
 }
