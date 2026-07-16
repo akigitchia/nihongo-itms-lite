@@ -38,17 +38,10 @@ export default async function DashboardPage() {
   const approvedLiveCourseIds = (enrollments ?? [])
     .filter((e) => e.status === "approved" && e.course?.course_format !== "self_paced")
     .map((e) => e.course_id);
-  const approvedSelfPacedCourseIds = (enrollments ?? [])
-    .filter((e) => e.status === "approved" && e.course?.course_format === "self_paced")
-    .map((e) => e.course_id);
 
   const { data: upcomingSessions } = approvedLiveCourseIds.length
     ? await supabase.from("sessions").select("*, course:courses(title)").in("course_id", approvedLiveCourseIds).gte("session_date", new Date(Date.now() - 3600000).toISOString()).order("session_date").limit(10)
     : { data: [] };
 
-  const { data: purchasedLessons } = approvedSelfPacedCourseIds.length
-    ? await supabase.from("sessions").select("*, course:courses(title)").in("course_id", approvedSelfPacedCourseIds).order("session_number")
-    : { data: [] };
-
-  return <StudentDashboard enrollments={enrollments ?? []} upcomingSessions={upcomingSessions ?? []} purchasedLessons={purchasedLessons ?? []} />;
+  return <StudentDashboard enrollments={enrollments ?? []} upcomingSessions={upcomingSessions ?? []} />;
 }
