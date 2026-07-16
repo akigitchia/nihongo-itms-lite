@@ -21,8 +21,9 @@ export default async function DashboardPage() {
       ? await supabase.from("enrollments").select("*, student:profiles(full_name, email, phone), course:courses(title)").in("course_id", courseIds).eq("status", "pending")
       : { data: [] };
 
-    const { data: upcomingSessions } = courseIds.length
-      ? await supabase.from("sessions").select("*, course:courses(title)").in("course_id", courseIds).gte("session_date", new Date(Date.now() - 3600000).toISOString()).order("session_date").limit(5)
+    const liveCourseIds = (courses ?? []).filter((c) => c.course_format !== "self_paced").map((c) => c.id);
+    const { data: upcomingSessions } = liveCourseIds.length
+      ? await supabase.from("sessions").select("*, course:courses(title)").in("course_id", liveCourseIds).gte("session_date", new Date(Date.now() - 3600000).toISOString()).order("session_date").limit(5)
       : { data: [] };
 
     return <TeacherDashboard courses={courses ?? []} pendingEnrollments={pendingEnrollments ?? []} upcomingSessions={upcomingSessions ?? []} />;
@@ -34,11 +35,20 @@ export default async function DashboardPage() {
     .eq("student_id", user.id)
     .order("created_at", { ascending: false });
 
-  const approvedCourseIds = (enrollments ?? []).filter((e) => e.status === "approved").map((e) => e.course_id);
+  const approvedLiveCourseIds = (enrollments ?? [])
+    .filter((e) => e.status === "approved" && e.course?.course_format !== "self_paced")
+    .map((e) => e.course_id);
+  const approvedSelfPacedCourseIds = (enrollments ?? [])
+    .filter((e) => e.status === "approved" && e.course?.course_format === "self_paced")
+    .map((e) => e.course_id);
 
-  const { data: upcomingSessions } = approvedCourseIds.length
-    ? await supabase.from("sessions").select("*, course:courses(title)").in("course_id", approvedCourseIds).gte("session_date", new Date(Date.now() - 3600000).toISOString()).order("session_date").limit(10)
+  const { data: upcomingSessions } = approvedLiveCourseIds.length
+    ? await supabase.from("sessions").select("*, course:courses(title)").in("course_id", approvedLiveCourseIds).gte("session_date", new Date(Date.now() - 3600000).toISOString()).order("session_date").limit(10)
     : { data: [] };
 
-  return <StudentDashboard enrollments={enrollments ?? []} upcomingSessions={upcomingSessions ?? []} />;
+  const { data: purchasedLessons } = approvedSelfPacedCourseIds.length
+    ? await supabase.from("sessions").select("*, course:courses(title)").in("course_id", approvedSelfPacedCourseIds).order("session_number")
+    : { data: [] };
+
+  return <StudentDashboard enrollments={enrollments ?? []} upcomingSessions={upcomingSessions ?? []} purchasedLessons={purchasedLessons ?? []} />;
 }
