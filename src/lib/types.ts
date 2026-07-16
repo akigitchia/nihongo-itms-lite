@@ -1,6 +1,7 @@
 export type UserRole = "teacher" | "student";
 export type EnrollmentStatus = "pending" | "approved" | "rejected";
 export type SessionStatus = "scheduled" | "live" | "completed" | "cancelled";
+export type CourseFormat = "live" | "self_paced";
 
 export interface Profile {
   id: string;
@@ -21,6 +22,9 @@ export interface Course {
   max_students: number;
   status: "open" | "closed";
   created_at: string;
+  course_format: CourseFormat;
+  price: number | null;
+  payment_note: string | null;
   teacher?: Profile;
 }
 
@@ -38,7 +42,8 @@ export interface ClassSession {
   id: string;
   course_id: string;
   session_number: number;
-  session_date: string;
+  title: string | null;
+  session_date: string | null;
   duration_minutes: number;
   meeting_link: string | null;
   materials_link: string | null;
