@@ -10,6 +10,7 @@ import { LEVELS } from "@/lib/types";
 
 export default function NewCoursePage() {
   const router = useRouter();
+  const [category, setCategory] = useState<"japanese" | "pm">("japanese");
   const [title, setTitle] = useState("");
   const [level, setLevel] = useState(LEVELS[0]);
   const [description, setDescription] = useState("");
@@ -33,6 +34,7 @@ export default function NewCoursePage() {
           title,
           level,
           description,
+          category,
           course_format: courseFormat,
           schedule_text: courseFormat === "live" ? scheduleText : "Tự học — xem video bất kỳ lúc nào",
           max_students: courseFormat === "live" ? maxStudents : 999,
@@ -59,6 +61,26 @@ export default function NewCoursePage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
+              <Label>Chuyên mục</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCategory("japanese")}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium ${category === "japanese" ? "border-navy-700 bg-navy-50 text-navy-700" : "border-sumi-100 text-sumi-600"}`}
+                >
+                  Tiếng Nhật ITMS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCategory("pm")}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium ${category === "pm" ? "border-navy-700 bg-navy-50 text-navy-700" : "border-sumi-100 text-sumi-600"}`}
+                >
+                  Quản lý dự án ITMS (PM)
+                </button>
+              </div>
+            </div>
+
+            <div>
               <Label>Loại khóa học</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -80,17 +102,26 @@ export default function NewCoursePage() {
 
             <div>
               <Label>Tên khóa học</Label>
-              <Input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="VD: Japanese Incident Communication" />
+              <Input
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={category === "pm" ? "VD: Change Management cho ITMS PM" : "VD: Japanese Incident Communication"}
+              />
             </div>
             <div>
               <Label>Trình độ</Label>
-              <Select value={level} onChange={(e) => setLevel(e.target.value)}>
-                {LEVELS.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </Select>
+              {category === "japanese" ? (
+                <Select value={level} onChange={(e) => setLevel(e.target.value)}>
+                  {LEVELS.map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <Input value={level} onChange={(e) => setLevel(e.target.value)} placeholder="VD: Foundation PM, Intermediate PM, Advanced PM..." />
+              )}
             </div>
             <div>
               <Label>Mô tả</Label>
