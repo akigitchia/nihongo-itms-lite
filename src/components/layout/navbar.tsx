@@ -24,6 +24,15 @@ export async function Navbar() {
           </span>
         </Link>
 
+        <div className="hidden items-center gap-5 md:flex">
+          <Link href="/pm" className="text-sm font-medium text-sumi-600 hover:text-navy-700">
+            Đào tạo PM
+          </Link>
+          <Link href="/japanese" className="text-sm font-medium text-sumi-600 hover:text-navy-700">
+            Tiếng Nhật ITMS
+          </Link>
+        </div>
+
         {profile ? (
           <nav className="flex items-center gap-4">
             <Link href="/dashboard" className="text-sm font-medium text-sumi-600 hover:text-navy-700">
