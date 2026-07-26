@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
       teacher_id: user.id,
       status: "open",
       course_format: body.course_format ?? "live",
+      category: body.category ?? "japanese",
       price: body.price ?? null,
       payment_note: body.payment_note ?? null,
     })
