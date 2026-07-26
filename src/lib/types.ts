@@ -2,6 +2,7 @@ export type UserRole = "teacher" | "student";
 export type EnrollmentStatus = "pending" | "approved" | "rejected";
 export type SessionStatus = "scheduled" | "live" | "completed" | "cancelled";
 export type CourseFormat = "live" | "self_paced";
+export type CourseCategory = "pm" | "japanese";
 
 export interface Profile {
   id: string;
@@ -23,6 +24,7 @@ export interface Course {
   status: "open" | "closed";
   created_at: string;
   course_format: CourseFormat;
+  category: CourseCategory;
   price: number | null;
   payment_note: string | null;
   teacher?: Profile;
