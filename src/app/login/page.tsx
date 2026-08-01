@@ -53,12 +53,14 @@ export default function LoginPage() {
               Đăng nhập
             </Button>
           </form>
-          <p className="mt-4 text-center text-sm text-sumi-400">
-            Chưa có tài khoản?{" "}
-            <Link href="/signup" className="text-navy-700 hover:underline">
-              Đăng ký
+          <div className="mt-4 flex justify-between text-sm">
+            <Link href="/forgot-password" className="text-navy-700 hover:underline">
+              Quên mật khẩu?
             </Link>
-          </p>
+            <Link href="/signup" className="text-navy-700 hover:underline">
+              Chưa có tài khoản? Đăng ký
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>
